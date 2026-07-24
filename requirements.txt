@@ -1,2 +1,4 @@
 ultralytics
-opencv-python
+opencv-python-headless
+fastapi
+uvicorn
