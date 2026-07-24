@@ -1,4 +1,5 @@
-ultralytics
+onnxruntime
 opencv-python-headless
+numpy
 fastapi
 uvicorn

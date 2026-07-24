@@ -1,15 +1,150 @@
 import io
 import tempfile
 import os
+import urllib.request
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import StreamingResponse, HTMLResponse
-from ultralytics import YOLO
+import onnxruntime as ort
 import cv2
 import numpy as np
 
 app = FastAPI(title="YOLOv8 Object Detection & Tracking")
 
-model = YOLO("yolov8n.pt")
+LOCAL_MODEL = os.path.join(os.path.dirname(__file__), "..", "yolov8n.onnx")
+MODEL_PATH = LOCAL_MODEL if os.path.exists(LOCAL_MODEL) else os.path.join("/tmp", "yolov8n.onnx")
+ONNX_URL = "https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8n.onnx"
+
+
+def _ensure_model():
+    if not os.path.exists(MODEL_PATH):
+        print(f"Downloading {ONNX_URL} ...")
+        urllib.request.urlretrieve(ONNX_URL, MODEL_PATH)
+        print("Download complete.")
+
+
+_ensure_model()
+session = ort.InferenceSession(MODEL_PATH, providers=["CPUExecutionProvider"])
+
+COCO_LABELS = [
+    "person","bicycle","car","motorcycle","airplane","bus","train","truck","boat",
+    "traffic light","fire hydrant","stop sign","parking meter","bench","bird","cat",
+    "dog","horse","sheep","cow","elephant","bear","zebra","giraffe","backpack",
+    "umbrella","handbag","tie","suitcase","frisbee","skis","snowboard",
+    "sports ball","kite","baseball bat","baseball glove","skateboard","surfboard",
+    "tennis racket","bottle","wine glass","cup","fork","knife","spoon","bowl",
+    "banana","apple","sandwich","orange","broccoli","carrot","hot dog","pizza",
+    "donut","cake","chair","couch","potted plant","bed","dining table","toilet",
+    "tv","laptop","mouse","remote","keyboard","cell phone","microwave","oven",
+    "toaster","sink","refrigerator","book","clock","vase","scissors",
+    "teddy bear","hair drier","toothbrush",
+]
+
+CONF_THRESH = 0.25
+IOU_THRESH = 0.45
+IMG_SIZE = 640
+
+
+def letterbox(img, new_shape=IMG_SIZE):
+    h, w = img.shape[:2]
+    r = min(new_shape / h, new_shape / w)
+    new_w, new_h = int(w * r), int(h * r)
+    resized = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+    dw = (new_shape - new_w) / 2
+    dh = (new_shape - new_h) / 2
+    top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
+    left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
+    padded = cv2.copyMakeBorder(resized, top, bottom, left, right,
+                                cv2.BORDER_CONSTANT, value=(114, 114, 114))
+    return padded, r, (dw, dh)
+
+
+def preprocess(img):
+    padded, ratio, (dw, dh) = letterbox(img)
+    blob = padded[:, :, ::-1].transpose(2, 0, 1).astype(np.float32) / 255.0
+    blob = np.expand_dims(blob, axis=0)
+    return blob, ratio, (dw, dh)
+
+
+def xywh2xyxy(x):
+    y = np.empty_like(x)
+    y[:, 0] = x[:, 0] - x[:, 2] / 2
+    y[:, 1] = x[:, 1] - x[:, 3] / 2
+    y[:, 2] = x[:, 0] + x[:, 2] / 2
+    y[:, 3] = x[:, 1] + x[:, 3] / 2
+    return y
+
+
+def nms(boxes, scores, iou_threshold):
+    order = scores.argsort()[::-1]
+    keep = []
+    while order.size > 0:
+        i = order[0]
+        keep.append(i)
+        if order.size == 1:
+            break
+        xx1 = np.maximum(boxes[i, 0], boxes[order[1:], 0])
+        yy1 = np.maximum(boxes[i, 1], boxes[order[1:], 1])
+        xx2 = np.minimum(boxes[i, 2], boxes[order[1:], 2])
+        yy2 = np.minimum(boxes[i, 3], boxes[order[1:], 3])
+        inter = np.maximum(0, xx2 - xx1) * np.maximum(0, yy2 - yy1)
+        area_i = (boxes[i, 2] - boxes[i, 0]) * (boxes[i, 3] - boxes[i, 1])
+        area_j = (boxes[order[1:], 2] - boxes[order[1:], 0]) * (boxes[order[1:], 3] - boxes[order[1:], 1])
+        iou = inter / (area_i + area_j - inter + 1e-6)
+        inds = np.where(iou <= iou_threshold)[0]
+        order = order[inds + 1]
+    return keep
+
+
+def postprocess(output, ratio, dw_dh, img_shape):
+    pred = output[0]
+    if pred.ndim == 3:
+        pred = pred[0]
+    pred = pred.T
+
+    boxes_xywh = pred[:, :4]
+    class_scores = pred[:, 4:]
+    max_scores = class_scores.max(axis=1)
+    class_ids = class_scores.argmax(axis=1)
+
+    mask = max_scores > CONF_THRESH
+    boxes_xywh = boxes_xywh[mask]
+    max_scores = max_scores[mask]
+    class_ids = class_ids[mask]
+
+    if len(max_scores) == 0:
+        return [], [], []
+
+    boxes_xyxy = xywh2xyxy(boxes_xywh)
+    dw, dh = dw_dh
+    boxes_xyxy[:, [0, 2]] = (boxes_xyxy[:, [0, 2]] - dw) / ratio
+    boxes_xyxy[:, [1, 3]] = (boxes_xyxy[:, [1, 3]] - dh) / ratio
+
+    h_orig, w_orig = img_shape[:2]
+    boxes_xyxy[:, [0, 2]] = np.clip(boxes_xyxy[:, [0, 2]], 0, w_orig)
+    boxes_xyxy[:, [1, 3]] = np.clip(boxes_xyxy[:, [1, 3]], 0, h_orig)
+
+    keep = nms(boxes_xyxy, max_scores, IOU_THRESH)
+    return boxes_xyxy[keep], max_scores[keep], class_ids[keep]
+
+
+def draw_detections(img, boxes, scores, class_ids):
+    for box, score, cid in zip(boxes, scores, class_ids):
+        x1, y1, x2, y2 = map(int, box)
+        label = f"{COCO_LABELS[cid]} {score:.2f}"
+        cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)
+        cv2.rectangle(img, (x1, y1 - th - 8), (x1 + tw + 4, y1), (0, 255, 0), -1)
+        cv2.putText(img, label, (x1 + 2, y1 - 4),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1, cv2.LINE_AA)
+    return img
+
+
+def run_detection(img):
+    blob, ratio, dw_dh = preprocess(img)
+    output = session.run(None, {session.get_inputs()[0].name: blob})[0]
+    boxes, scores, class_ids = postprocess(output, ratio, dw_dh, img.shape)
+    return draw_detections(img.copy(), boxes, scores, class_ids)
+
 
 HTML_PAGE = """<!DOCTYPE html>
 <html lang="en">
@@ -113,8 +248,7 @@ async def detect_image(file: UploadFile = File(...)):
     if img is None:
         return StreamingResponse(io.BytesIO(b""), status_code=400, media_type="text/plain")
 
-    results = model(img)
-    annotated = results[0].plot()
+    annotated = run_detection(img)
     _, buffer = cv2.imencode(".jpg", annotated)
     return StreamingResponse(io.BytesIO(buffer.tobytes()), media_type="image/jpeg")
 
@@ -137,8 +271,7 @@ async def detect_video(file: UploadFile = File(...)):
         ret, frame = cap.read()
         if not ret:
             break
-        results = model.track(frame, persist=True)
-        annotated = results[0].plot()
+        annotated = run_detection(frame)
         frames.append(annotated)
     cap.release()
 
