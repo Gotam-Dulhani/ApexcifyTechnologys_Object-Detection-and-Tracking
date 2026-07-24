@@ -3,5 +3,3 @@ __pycache__/
 .env
 .venv/
 node_modules/
-yolov8n.pt
-yolov8n.onnx
