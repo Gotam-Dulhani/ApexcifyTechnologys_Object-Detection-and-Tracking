@@ -1,7 +1,6 @@
 import io
 import tempfile
 import os
-import urllib.request
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import StreamingResponse, HTMLResponse
 import onnxruntime as ort
@@ -10,19 +9,7 @@ import numpy as np
 
 app = FastAPI(title="YOLOv8 Object Detection & Tracking")
 
-LOCAL_MODEL = os.path.join(os.path.dirname(__file__), "..", "yolov8n.onnx")
-MODEL_PATH = LOCAL_MODEL if os.path.exists(LOCAL_MODEL) else os.path.join("/tmp", "yolov8n.onnx")
-ONNX_URL = "https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8n.onnx"
-
-
-def _ensure_model():
-    if not os.path.exists(MODEL_PATH):
-        print(f"Downloading {ONNX_URL} ...")
-        urllib.request.urlretrieve(ONNX_URL, MODEL_PATH)
-        print("Download complete.")
-
-
-_ensure_model()
+MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "yolov8n.onnx")
 session = ort.InferenceSession(MODEL_PATH, providers=["CPUExecutionProvider"])
 
 COCO_LABELS = [
