@@ -1,5 +1,4 @@
 {
-  "installCommand": "bash scripts/build.sh",
   "builds": [
     {
       "src": "api/index.py",
