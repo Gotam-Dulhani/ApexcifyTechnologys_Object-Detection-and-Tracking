@@ -1,9 +1,5 @@
-import io
-import os
-import traceback
-import urllib.request
-from fastapi import FastAPI, File, UploadFile
-from fastapi.responses import StreamingResponse, HTMLResponse, JSONResponse
+from fastapi import FastAPI
+from fastapi.responses import HTMLResponse, JSONResponse
 
 app = FastAPI()
 
@@ -66,20 +62,28 @@ async def health():
 
 
 @app.post("/api/detect")
-async def detect_image(file: UploadFile = File(...)):
-    try:
-        import numpy as np
-        from PIL import Image, ImageDraw
-        import onnxruntime as ort
-    except ImportError as e:
-        return JSONResponse({"error": f"Missing dependency: {e}"}, status_code=500)
+async def detect_image(request):
+    import io
+    import os
+    import traceback
+    import numpy as np
+    from PIL import Image, ImageDraw
+    import onnxruntime as ort
+    from fastapi import File, UploadFile
+    from fastapi.responses import StreamingResponse
+
+    form = await request.form()
+    upload = form.get("file")
+    if upload is None:
+        return JSONResponse({"error": "No file provided"}, status_code=400)
 
     MODEL_URL = "https://huggingface.co/salim4n/yolov8n-detect-onnx/resolve/main/yolov8n.onnx"
     MODEL_PATH = "/tmp/yolov8n.onnx"
 
     if not os.path.exists(MODEL_PATH) or os.path.getsize(MODEL_PATH) < 1_000_000:
+        import urllib.request as _urlreq
         try:
-            urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
+            _urlreq.urlretrieve(MODEL_URL, MODEL_PATH)
         except Exception as e:
             return JSONResponse({"error": f"Failed to download model: {e}"}, status_code=500)
 
@@ -105,7 +109,7 @@ async def detect_image(file: UploadFile = File(...)):
     IOU_THR = 0.45
 
     try:
-        contents = await file.read()
+        contents = await upload.read()
         img = Image.open(io.BytesIO(contents)).convert("RGB")
         arr = np.array(img)
         h_orig, w_orig = arr.shape[:2]
