@@ -1,6 +1,10 @@
 {
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index" },
-    { "source": "/(.*)", "destination": "/api/index" }
-  ]
+    { "source": "/api/(.*)", "destination": "/api/index" }
+  ],
+  "functions": {
+    "api/**/*.py": {
+      "excludeFiles": "{main.py,scripts/**,*.pt,*.onnx,**/__pycache__/**}"
+    }
+  }
 }
