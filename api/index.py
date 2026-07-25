@@ -72,7 +72,9 @@ async def detect_image(file: UploadFile = File(...)):
         import traceback
         import urllib.request
     except ImportError as e:
-        return JSONResponse({"error": f"Import failed: {e}"}, status_code=500)
+        return JSONResponse({"error": f"Missing dependency: {e}. Add onnxruntime numpy Pillow to requirements.txt", "status": "needs_packages"}, status_code=500)
+    except Exception as e:
+        return JSONResponse({"error": f"Crash loading dependencies: {e}", "status": "native_crash"}, status_code=500)
 
     MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "yolov8n.onnx")
     model_path = next((p for p in [MODEL_PATH, "/tmp/yolov8n.onnx"] if os.path.exists(p) and os.path.getsize(p) > 1_000_000), None)
