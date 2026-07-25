@@ -1,5 +1,4 @@
 {
-  "installCommand": "bash scripts/build.sh",
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index" },
     { "source": "/(.*)", "destination": "/api/index" }

@@ -1,6 +1,7 @@
 import io
 import os
 import traceback
+import urllib.request
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import StreamingResponse, HTMLResponse, JSONResponse
 from PIL import Image, ImageDraw
@@ -13,13 +14,43 @@ _import_error = None
 _model = None
 _model_error = None
 
+ONNX_URLS = [
+    "https://huggingface.co/salim4n/yolov8n-detect-onnx/resolve/main/yolov8n.onnx",
+    "https://huggingface.co/NaveenKumar5/Yolov8n-onnx-export/resolve/main/yolov8n.onnx",
+]
+
+def _find_model():
+    candidates = [
+        os.path.join(os.path.dirname(__file__), "..", "yolov8n.onnx"),
+        "/tmp/yolov8n.onnx",
+    ]
+    for p in candidates:
+        if os.path.exists(p) and os.path.getsize(p) > 1_000_000:
+            return p
+    return None
+
+def _download_model():
+    dest = "/tmp/yolov8n.onnx"
+    for url in ONNX_URLS:
+        try:
+            print(f"Downloading model from {url}...")
+            urllib.request.urlretrieve(url, dest)
+            if os.path.getsize(dest) > 1_000_000:
+                print(f"Downloaded to {dest}")
+                return dest
+        except Exception as e:
+            print(f"Failed: {e}")
+    return None
+
 try:
     import onnxruntime as ort
-    MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "yolov8n.onnx")
-    if os.path.exists(MODEL_PATH):
-        _model = ort.InferenceSession(MODEL_PATH, providers=["CPUExecutionProvider"])
+    model_path = _find_model()
+    if model_path is None:
+        model_path = _download_model()
+    if model_path:
+        _model = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
     else:
-        _model_error = f"Model not found: {MODEL_PATH}"
+        _model_error = "Model not available"
     _imports_ok = True
 except Exception:
     _import_error = traceback.format_exc()
