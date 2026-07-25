@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
 app = FastAPI()
@@ -62,7 +62,7 @@ async def health():
 
 
 @app.post("/api/detect")
-async def detect_image(request):
+async def detect_image(request: Request):
     import io
     import os
     import traceback
