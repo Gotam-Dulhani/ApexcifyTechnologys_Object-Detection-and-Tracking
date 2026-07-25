@@ -1,5 +1,4 @@
-onnxruntime
-opencv-python-headless
 numpy
+Pillow
 fastapi
 uvicorn
