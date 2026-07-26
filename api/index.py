@@ -72,7 +72,6 @@ HTML_PAGE = r"""<!DOCTYPE html>
         .detections{padding:1rem 1.25rem}
         .det-list{display:flex;flex-wrap:wrap;gap:.4rem}
         .det-chip{display:inline-flex;align-items:center;gap:.3rem;background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.15);color:var(--accent2);font-size:.75rem;font-weight:500;padding:.3rem .65rem;border-radius:8px}
-        .det-chip .score{color:var(--muted);font-weight:400}
         .det-count{font-size:.8rem;color:var(--muted);margin-bottom:.5rem}
         .no-det{color:var(--muted);font-size:.85rem;font-style:italic}
         footer{text-align:center;margin-top:3rem;padding:1.5rem;color:var(--muted);font-size:.78rem;border-top:1px solid var(--border)}
@@ -181,21 +180,34 @@ HTML_PAGE = r"""<!DOCTYPE html>
     async function detectLoop(){
         if(!stream||detecting)return;
         detecting=true;
-        const ctx=camCanvas.getContext('2d');
-        const t0=performance.now();
-        const blob=await new Promise(r=>camCanvas.toBlob(r,'image/jpeg',0.7));
-        const fd=new FormData();fd.append('file',blob,'frame.jpg');
         try{
+            const ctx=camCanvas.getContext('2d');
+            ctx.drawImage(camVideo,0,0,camCanvas.width,camCanvas.height);
+            const t0=performance.now();
+            const blob=await new Promise(r=>camCanvas.toBlob(r,'image/jpeg',0.7));
+            if(!blob){detecting=false;return}
+            const fd=new FormData();fd.append('file',blob,'frame.jpg');
             const resp=await fetch('/api/detect',{method:'POST',body:fd});
             if(resp.ok){
                 const data=await resp.json();
-                const img=new Image();
-                img.onload=()=>{ctx.clearRect(0,0,camCanvas.width,camCanvas.height);ctx.drawImage(img,0,0);const fps=((performance.now()-t0)/1000);camFps.textContent=(1/fps).toFixed(1)+' FPS'};
-                img.src='data:image/jpeg;base64,'+data.image;
+                if(data.image){
+                    const img=new Image();
+                    await new Promise((res,rej)=>{img.onload=res;img.onerror=rej;img.src='data:image/jpeg;base64,'+data.image});
+                    ctx.drawImage(img,0,0,camCanvas.width,camCanvas.height);
+                }
+                const elapsed=(performance.now()-t0)/1000;
+                camFps.textContent=(1/elapsed).toFixed(1)+' FPS';
+                let camDet=$('camDetList');
+                if(camDet){
+                    if(data.detections&&data.detections.length>0){
+                        const counts={};data.detections.forEach(d=>{counts[d.label]=(counts[d.label]||0)+1});
+                        camDet.innerHTML=Object.entries(counts).map(([k,v])=>'<span class="det-chip">'+k+(v>1?' x'+v:'')+'</span>').join('');
+                    }else{camDet.innerHTML=''}
+                }
             }
         }catch(e){}
         detecting=false;
-        if(stream)requestAnimationFrame(()=>setTimeout(detectLoop,100));
+        if(stream)setTimeout(detectLoop,150);
     }
     </script>
 </body>
@@ -272,10 +284,13 @@ async def detect_image(request: Request):
 
         sess = ort.InferenceSession(MODEL_PATH, providers=["CPUExecutionProvider"])
         out = sess.run(None, {sess.get_inputs()[0].name: blob})[0]
+
         pred = out[0]
         if pred.ndim == 3:
             pred = pred[0]
-        pred = pred.T
+
+        if pred.shape[0] < pred.shape[1]:
+            pred = pred.T
 
         COCO = [
             "person","bicycle","car","motorcycle","airplane","bus","train","truck","boat",
@@ -299,6 +314,9 @@ async def detect_image(request: Request):
 
         CONF = 0.25
         IOU_THR = 0.45
+
+        num_preds = pred.shape[0]
+        num_features = pred.shape[1]
 
         boxes_xywh = pred[:, :4]
         scores_all = pred[:, 4:]
@@ -357,7 +375,11 @@ async def detect_image(request: Request):
         pil_img.save(buf, format="JPEG", quality=85)
         img_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
 
-        return JSONResponse({"image": img_b64, "detections": detections})
+        return JSONResponse({
+            "image": img_b64,
+            "detections": detections,
+            "debug": {"output_shape": list(out.shape), "pred_shape": [num_preds, num_features], "after_filter": len(boxes_xywh)}
+        })
 
     except Exception as e:
         return JSONResponse({"error": str(e), "traceback": traceback.format_exc()}, status_code=500)
