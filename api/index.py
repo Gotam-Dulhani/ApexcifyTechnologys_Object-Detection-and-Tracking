@@ -175,7 +175,31 @@ async def root():
 
 @app.get("/api/health")
 async def health():
-    return JSONResponse({"status": "ok"})
+    result = {"status": "ok"}
+    try:
+        import numpy
+        result["numpy"] = numpy.__version__
+    except Exception as e:
+        result["numpy"] = f"FAIL: {e}"
+    try:
+        import PIL
+        result["pillow"] = PIL.__version__
+    except Exception as e:
+        result["pillow"] = f"FAIL: {e}"
+    try:
+        import onnxruntime
+        result["onnxruntime"] = onnxruntime.__version__
+    except Exception as e:
+        result["onnxruntime"] = f"FAIL: {e}"
+    try:
+        import urllib.request
+        result["urllib"] = "ok"
+    except Exception as e:
+        result["urllib"] = f"FAIL: {e}"
+    import os
+    result["model_exists"] = os.path.exists("/tmp/yolov8n.onnx")
+    result["model_size"] = os.path.getsize("/tmp/yolov8n.onnx") if result["model_exists"] else 0
+    return JSONResponse(result)
 
 
 @app.post("/api/detect")
