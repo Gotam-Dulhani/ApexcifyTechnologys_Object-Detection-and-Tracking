@@ -197,8 +197,15 @@ async def health():
     except Exception as e:
         result["urllib"] = f"FAIL: {e}"
     import os
-    result["model_exists"] = os.path.exists("/tmp/yolov8n.onnx")
-    result["model_size"] = os.path.getsize("/tmp/yolov8n.onnx") if result["model_exists"] else 0
+    _base = os.path.dirname(os.path.abspath(__file__))
+    for candidate in [os.path.join(_base, "..", "yolov8n.onnx"), os.path.join(_base, "yolov8n.onnx"), "/tmp/yolov8n.onnx"]:
+        if os.path.exists(candidate) and os.path.getsize(candidate) > 1_000_000:
+            result["model_path"] = candidate
+            result["model_size"] = os.path.getsize(candidate)
+            break
+    else:
+        result["model_path"] = "not found"
+        result["model_size"] = 0
     return JSONResponse(result)
 
 
@@ -221,9 +228,19 @@ async def detect_image(request: Request):
     MODEL_URL = "https://huggingface.co/s1777/yolo-v8n-onnx/resolve/main/yolov8n.onnx"
     MODEL_PATH = "/tmp/yolov8n.onnx"
 
-    if not os.path.exists(MODEL_PATH) or os.path.getsize(MODEL_PATH) < 1_000_000:
+    _base = os.path.dirname(os.path.abspath(__file__))
+    for candidate in [os.path.join(_base, "..", "yolov8n.onnx"), os.path.join(_base, "yolov8n.onnx"), MODEL_PATH]:
+        if os.path.exists(candidate) and os.path.getsize(candidate) > 1_000_000:
+            MODEL_PATH = candidate
+            break
+    else:
+        import urllib.request as _urlreq
         try:
-            _urlreq.urlretrieve(MODEL_URL, MODEL_PATH)
+            req = _urlreq.Request(MODEL_URL, headers={"User-Agent": "Mozilla/5.0"})
+            with _urlreq.urlopen(req, timeout=30) as resp:
+                data = resp.read()
+            with open(MODEL_PATH, "wb") as f:
+                f.write(data)
         except Exception as e:
             return JSONResponse({"error": f"Failed to download model: {e}"}, status_code=500)
 

@@ -7,7 +7,7 @@ License
 .gitattributes
 .python-version
 yolov8n.pt
-yolov8n.onnx
+
 __pycache__/
 .venv/
 node_modules/

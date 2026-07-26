@@ -1,4 +1,5 @@
 {
+  "installCommand": "pip install -r requirements.txt && curl -L -o yolov8n.onnx https://huggingface.co/s1777/yolo-v8n-onnx/resolve/main/yolov8n.onnx",
   "rewrites": [
     { "source": "/(.*)", "destination": "/api/index" }
   ]
