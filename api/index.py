@@ -38,15 +38,16 @@ HTML_PAGE = r"""<!DOCTYPE html>
         .file-info{margin-top:1rem;display:none;align-items:center;gap:.6rem;justify-content:center;color:var(--green);font-size:.85rem;font-weight:500}
         .file-info.show{display:flex}
         .file-info svg{width:16px;height:16px;stroke:var(--green);fill:none;stroke-width:2}
-        .camera-zone{position:relative;border-radius:var(--radius);overflow:hidden;background:var(--card);border:1px solid var(--border);aspect-ratio:4/3;display:none}
-        .camera-zone video{width:100%;height:100%;object-fit:cover;display:block}
-        .camera-overlay{position:absolute;top:1rem;left:1rem;right:1rem;display:flex;justify-content:space-between;align-items:center;z-index:2}
+        .camera-zone{position:relative;border-radius:var(--radius);overflow:hidden;background:var(--card);border:1px solid var(--border);display:none}
+        .camera-zone video{width:100%;display:block}
+        .camera-zone img{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;display:none;z-index:1}
+        .camera-overlay{position:absolute;top:1rem;left:1rem;right:1rem;display:flex;justify-content:space-between;align-items:center;z-index:3}
         .cam-badge{background:rgba(239,68,68,.9);color:#fff;font-size:.7rem;font-weight:700;padding:.3rem .7rem;border-radius:99px;display:flex;align-items:center;gap:.35rem}
         .cam-badge::before{content:'';width:6px;height:6px;background:#fff;border-radius:50%;animation:pulse 1s infinite}
         .cam-fps{background:rgba(0,0,0,.6);color:#fff;font-size:.7rem;font-weight:600;padding:.3rem .6rem;border-radius:6px}
-        .cam-controls{position:absolute;bottom:1rem;left:1rem;right:1rem;display:flex;justify-content:center;z-index:2}
-        .cam-dets{position:absolute;bottom:3.5rem;left:1rem;right:1rem;display:flex;flex-wrap:wrap;gap:.35rem;z-index:2}
-        .det-chip-sm{background:rgba(0,0,0,.7);border:1px solid rgba(99,102,241,.3);color:#fff;font-size:.7rem;font-weight:500;padding:.2rem .55rem;border-radius:6px}
+        .cam-controls{position:absolute;bottom:1rem;left:1rem;right:1rem;display:flex;justify-content:center;gap:.5rem;z-index:3}
+        .cam-dets{position:absolute;bottom:3.5rem;left:1rem;right:1rem;display:flex;flex-wrap:wrap;gap:.35rem;z-index:3}
+        .det-chip-sm{background:rgba(0,0,0,.75);border:1px solid rgba(99,102,241,.3);color:#fff;font-size:.7rem;font-weight:500;padding:.2rem .55rem;border-radius:6px;backdrop-filter:blur(4px)}
         .btn{padding:.7rem 2rem;border-radius:12px;font-size:.9rem;font-weight:600;cursor:pointer;border:none;transition:all .2s;font-family:inherit}
         .btn-primary{background:var(--accent);color:#fff;box-shadow:0 4px 15px rgba(99,102,241,.3)}
         .btn-primary:hover:not(:disabled){background:var(--accent2);transform:translateY(-1px)}
@@ -55,6 +56,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
         .btn-secondary:hover{border-color:var(--muted)}
         .btn-danger{background:var(--red);color:#fff}
         .btn-danger:hover{background:#dc2626}
+        .btn-sm{padding:.5rem 1.2rem;font-size:.8rem;border-radius:8px}
         .actions{margin-top:1.5rem;display:flex;gap:.75rem;justify-content:center}
         .status{text-align:center;margin-top:1rem;min-height:1.5rem}
         .status-text{color:var(--muted);font-size:.85rem}
@@ -114,13 +116,14 @@ HTML_PAGE = r"""<!DOCTYPE html>
         <div id="cameraPanel" style="display:none">
             <div class="camera-zone" id="camZone">
                 <video id="camVideo" autoplay playsinline muted></video>
+                <img id="camOverlay">
                 <div class="camera-overlay">
                     <div class="cam-badge" id="camBadge" style="display:none">LIVE</div>
                     <div class="cam-fps" id="camFps"></div>
                 </div>
                 <div class="cam-dets" id="camDetChips"></div>
                 <div class="cam-controls">
-                    <button class="btn btn-danger" id="camStop" style="display:none">Stop Camera</button>
+                    <button class="btn btn-danger btn-sm" id="camStop" style="display:none">Stop Camera</button>
                 </div>
             </div>
             <div class="actions">
@@ -144,7 +147,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
             </div>
         </div>
 
-        <footer>Powered by YOLOv8 + ONNX Runtime &middot; Built with FastAPI &middot; v3</footer>
+        <footer>Powered by YOLOv8 + ONNX Runtime &middot; Built with FastAPI &middot; v4</footer>
     </div>
 
     <canvas id="offCanvas" style="display:none"></canvas>
@@ -153,9 +156,9 @@ HTML_PAGE = r"""<!DOCTYPE html>
     const $=id=>document.getElementById(id);
     const dz=$('dz'),fi=$('fi'),db=$('db'),rb=$('rb'),st=$('st'),res=$('res'),ri=$('ri'),dc=$('dc'),dl2=$('dl2'),fiInfo=$('fiInfo'),fiName=$('fiName'),dlLink=$('dl');
     const tabUpload=$('tabUpload'),tabCamera=$('tabCamera'),uploadPanel=$('uploadPanel'),cameraPanel=$('cameraPanel');
-    const camZone=$('camZone'),camVideo=$('camVideo'),camStart=$('camStart'),camStop=$('camStop'),camBadge=$('camBadge'),camFps=$('camFps'),camDetChips=$('camDetChips');
+    const camZone=$('camZone'),camVideo=$('camVideo'),camOverlay=$('camOverlay'),camStart=$('camStart'),camStop=$('camStop'),camBadge=$('camBadge'),camFps=$('camFps'),camDetChips=$('camDetChips');
     const offCanvas=$('offCanvas');
-    let sf=null,stream=null,detecting=false,camInterval=null;
+    let sf=null,stream=null,detecting=false;
 
     tabUpload.onclick=()=>{tabUpload.classList.add('active');tabCamera.classList.remove('active');uploadPanel.style.display='';cameraPanel.style.display='none';stopCam()};
     tabCamera.onclick=()=>{tabCamera.classList.add('active');tabUpload.classList.remove('active');cameraPanel.style.display='';uploadPanel.style.display='none'};
@@ -172,12 +175,16 @@ HTML_PAGE = r"""<!DOCTYPE html>
 
     async function startCam(){
         try{
-            stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:640},height:{ideal:480}}});
+            stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}});
             camVideo.srcObject=stream;
             camZone.style.display='block';camStart.style.display='none';camStop.style.display='';camBadge.style.display='flex';
-            camVideo.onloadedmetadata=()=>{
-                offCanvas.width=camVideo.videoWidth||640;offCanvas.height=camVideo.videoHeight||480;
+            camOverlay.style.display='none';
+            camVideo.onplaying=()=>{
+                offCanvas.width=camVideo.videoWidth||640;
+                offCanvas.height=camVideo.videoHeight||480;
                 camDetChips.innerHTML='';
+                camOverlay.style.width='100%';
+                camOverlay.style.height=(camZone.offsetWidth*(camVideo.videoHeight/camVideo.videoWidth))+'px';
                 detectFrame();
             };
         }catch(e){st.innerHTML='<span class="status-text error">Camera access denied: '+e.message+'</span>'}
@@ -185,7 +192,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
 
     function stopCam(){
         if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
-        if(camInterval){clearInterval(camInterval);camInterval=null}
+        camOverlay.style.display='none';
         camZone.style.display='none';camStart.style.display='';camStop.style.display='none';camBadge.style.display='none';camFps.textContent='';camDetChips.innerHTML='';
         detecting=false;
     }
@@ -197,25 +204,30 @@ HTML_PAGE = r"""<!DOCTYPE html>
         try{
             const ctx=offCanvas.getContext('2d');
             ctx.drawImage(camVideo,0,0,offCanvas.width,offCanvas.height);
-            const t0=performance.now();
             const blob=await new Promise(r=>offCanvas.toBlob(r,'image/jpeg',0.8));
-            if(!blob){detecting=false;return}
+            if(!blob){detecting=false;if(stream)setTimeout(detectFrame,200);return}
+            const t0=performance.now();
             const fd=new FormData();fd.append('file',blob,'frame.jpg');
             const resp=await fetch('/api/detect',{method:'POST',body:fd});
             if(resp.ok){
                 const data=await resp.json();
                 const elapsed=((performance.now()-t0)/1000);
                 camFps.textContent=(1/elapsed).toFixed(1)+' FPS';
+                if(data.image){
+                    camOverlay.src='data:image/jpeg;base64,'+data.image;
+                    camOverlay.style.display='block';
+                    camVideo.style.opacity='0';
+                }
                 if(data.detections&&data.detections.length>0){
                     const counts={};data.detections.forEach(d=>{counts[d.label]=(counts[d.label]||0)+1});
                     camDetChips.innerHTML=Object.entries(counts).map(([k,v])=>'<span class="det-chip-sm">'+k+(v>1?' x'+v:'')+'</span>').join('');
                 }else{
-                    camDetChips.innerHTML='<span class="det-chip-sm" style="color:var(--muted)">No objects</span>';
+                    camDetChips.innerHTML='<span class="det-chip-sm" style="opacity:.5">No objects</span>';
                 }
             }
         }catch(e){camFps.textContent='Error';}
         detecting=false;
-        if(stream)setTimeout(detectFrame,1000);
+        if(stream)setTimeout(detectFrame,300);
     }
     </script>
 </body>
@@ -251,7 +263,7 @@ async def detect_image(request: Request):
         if len(contents) < 100:
             return JSONResponse({"error": "File too small to be a valid image"}, status_code=400)
 
-        MODEL_URL = "https://huggingface.co/s1777/yolo-v8n-onnx/resolve/main/yolov8n.onnx"
+        MODEL_URL = "https://huggingface.co/inference4j/yolov8n/resolve/main/yolov8n.onnx"
         MODEL_PATH = "/tmp/yolov8n.onnx"
 
         if not os.path.exists(MODEL_PATH) or os.path.getsize(MODEL_PATH) < 1_000_000:
@@ -305,7 +317,8 @@ async def detect_image(request: Request):
         pred = out[0]
         if pred.ndim == 3:
             pred = pred[0]
-        if pred.ndim == 2 and pred.shape[0] < pred.shape[1]:
+
+        if pred.shape[0] < pred.shape[1]:
             pred = pred.T
 
         COCO = [
@@ -391,11 +404,7 @@ async def detect_image(request: Request):
         pil_img.save(buf, format="JPEG", quality=85)
         img_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
 
-        return JSONResponse({
-            "image": img_b64,
-            "detections": detections,
-            "debug": {"output_shape": list(out.shape), "pred_shape": list(pred.shape), "raw_max": float(pred[:, 4:].max()) if pred.shape[1] > 4 else 0, "num_detections_raw": int(m.sum()), "image_size": [w_orig, h_orig]}
-        })
+        return JSONResponse({"image": img_b64, "detections": detections})
 
     except Exception as e:
         return JSONResponse({"error": str(e), "traceback": traceback.format_exc()}, status_code=500)
