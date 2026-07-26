@@ -176,7 +176,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
             camVideo.srcObject=stream;
             camZone.style.display='block';camStart.style.display='none';camStop.style.display='';camBadge.style.display='flex';
             camVideo.onloadedmetadata=()=>{
-                offCanvas.width=320;offCanvas.height=240;
+                offCanvas.width=camVideo.videoWidth||640;offCanvas.height=camVideo.videoHeight||480;
                 camDetChips.innerHTML='';
                 detectFrame();
             };
@@ -198,7 +198,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
             const ctx=offCanvas.getContext('2d');
             ctx.drawImage(camVideo,0,0,offCanvas.width,offCanvas.height);
             const t0=performance.now();
-            const blob=await new Promise(r=>offCanvas.toBlob(r,'image/jpeg',0.5));
+            const blob=await new Promise(r=>offCanvas.toBlob(r,'image/jpeg',0.8));
             if(!blob){detecting=false;return}
             const fd=new FormData();fd.append('file',blob,'frame.jpg');
             const resp=await fetch('/api/detect',{method:'POST',body:fd});
@@ -215,7 +215,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
             }
         }catch(e){camFps.textContent='Error';}
         detecting=false;
-        if(stream)setTimeout(detectFrame,500);
+        if(stream)setTimeout(detectFrame,1000);
     }
     </script>
 </body>
@@ -394,7 +394,7 @@ async def detect_image(request: Request):
         return JSONResponse({
             "image": img_b64,
             "detections": detections,
-            "debug": {"output_shape": list(out.shape), "pred_shape": list(pred.shape), "raw_max": float(pred[:, 4:].max()) if pred.shape[1] > 4 else 0, "num_detections_raw": int(m.sum())}
+            "debug": {"output_shape": list(out.shape), "pred_shape": list(pred.shape), "raw_max": float(pred[:, 4:].max()) if pred.shape[1] > 4 else 0, "num_detections_raw": int(m.sum()), "image_size": [w_orig, h_orig]}
         })
 
     except Exception as e:
