@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 app = FastAPI()
 
-HTML_PAGE = """<!DOCTYPE html>
+HTML_PAGE = r"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -12,19 +12,23 @@ HTML_PAGE = """<!DOCTYPE html>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        :root{--bg:#0a0a0b;--card:#141416;--border:#232328;--accent:#6366f1;--accent2:#818cf8;--green:#22c55e;--text:#e4e4e7;--muted:#71717a;--radius:16px}
+        :root{--bg:#0a0a0b;--card:#141416;--border:#232328;--accent:#6366f1;--accent2:#818cf8;--green:#22c55e;--red:#ef4444;--text:#e4e4e7;--muted:#71717a;--radius:16px}
         *{margin:0;padding:0;box-sizing:border-box}
         body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
         .bg-glow{position:fixed;top:-200px;left:50%;transform:translateX(-50%);width:600px;height:600px;background:radial-gradient(circle,rgba(99,102,241,.12) 0%,transparent 70%);pointer-events:none;z-index:0}
         .container{position:relative;z-index:1;max-width:800px;margin:0 auto;padding:2rem 1.5rem}
-        header{text-align:center;margin-bottom:2.5rem}
+        header{text-align:center;margin-bottom:2rem}
         .badge{display:inline-flex;align-items:center;gap:.4rem;background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.25);color:var(--accent2);font-size:.75rem;font-weight:600;padding:.35rem .8rem;border-radius:99px;margin-bottom:1rem;letter-spacing:.02em}
         .badge::before{content:'';width:6px;height:6px;background:var(--green);border-radius:50%;animation:pulse 2s infinite}
         @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
         h1{font-size:2.2rem;font-weight:700;letter-spacing:-.03em;margin-bottom:.5rem;background:linear-gradient(135deg,#fff 30%,var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
         .sub{color:var(--muted);font-size:.95rem;line-height:1.5}
+        .tabs{display:flex;justify-content:center;gap:.5rem;margin-bottom:2rem}
+        .tab{padding:.55rem 1.5rem;border-radius:10px;font-size:.85rem;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--muted);transition:all .2s;font-family:inherit}
+        .tab.active{background:var(--accent);color:#fff;border-color:var(--accent);box-shadow:0 4px 15px rgba(99,102,241,.3)}
+        .tab:hover:not(.active){border-color:var(--muted)}
         .upload-zone{position:relative;border:2px dashed var(--border);border-radius:var(--radius);padding:3rem 2rem;text-align:center;cursor:pointer;transition:all .25s;background:var(--card)}
-        .upload-zone:hover,.upload-zone.dragover{border-color:var(--accent);background:rgba(99,102,241,.04);box-shadow:0 0 30px rgba(99,102,241,.06)}
+        .upload-zone:hover,.upload-zone.dragover{border-color:var(--accent);background:rgba(99,102,241,.04)}
         .upload-zone.has-file{border-color:var(--green);background:rgba(34,197,94,.03)}
         .upload-zone input{display:none}
         .upload-icon{width:48px;height:48px;margin:0 auto 1rem;border-radius:12px;background:rgba(99,102,241,.1);display:flex;align-items:center;justify-content:center}
@@ -34,16 +38,26 @@ HTML_PAGE = """<!DOCTYPE html>
         .file-info{margin-top:1rem;display:none;align-items:center;gap:.6rem;justify-content:center;color:var(--green);font-size:.85rem;font-weight:500}
         .file-info.show{display:flex}
         .file-info svg{width:16px;height:16px;stroke:var(--green);fill:none;stroke-width:2}
-        .actions{margin-top:1.5rem;display:flex;gap:.75rem;justify-content:center}
+        .camera-zone{position:relative;border-radius:var(--radius);overflow:hidden;background:var(--card);border:1px solid var(--border);aspect-ratio:4/3;display:none}
+        .camera-zone video,.camera-zone canvas{width:100%;height:100%;object-fit:cover;display:block}
+        .camera-zone canvas{position:absolute;top:0;left:0}
+        .camera-overlay{position:absolute;top:1rem;left:1rem;right:1rem;display:flex;justify-content:space-between;align-items:center;z-index:2}
+        .cam-badge{background:rgba(239,68,68,.9);color:#fff;font-size:.7rem;font-weight:700;padding:.3rem .7rem;border-radius:99px;display:flex;align-items:center;gap:.35rem}
+        .cam-badge::before{content:'';width:6px;height:6px;background:#fff;border-radius:50%;animation:pulse 1s infinite}
+        .cam-fps{background:rgba(0,0,0,.6);color:#fff;font-size:.7rem;font-weight:600;padding:.3rem .6rem;border-radius:6px}
+        .cam-controls{position:absolute;bottom:1rem;left:1rem;right:1rem;display:flex;justify-content:center;z-index:2}
         .btn{padding:.7rem 2rem;border-radius:12px;font-size:.9rem;font-weight:600;cursor:pointer;border:none;transition:all .2s;font-family:inherit}
         .btn-primary{background:var(--accent);color:#fff;box-shadow:0 4px 15px rgba(99,102,241,.3)}
-        .btn-primary:hover:not(:disabled){background:var(--accent2);transform:translateY(-1px);box-shadow:0 6px 20px rgba(99,102,241,.4)}
+        .btn-primary:hover:not(:disabled){background:var(--accent2);transform:translateY(-1px)}
         .btn-primary:disabled{opacity:.4;cursor:not-allowed;transform:none}
         .btn-secondary{background:var(--card);color:var(--text);border:1px solid var(--border)}
         .btn-secondary:hover{border-color:var(--muted)}
+        .btn-danger{background:var(--red);color:#fff}
+        .btn-danger:hover{background:#dc2626}
+        .actions{margin-top:1.5rem;display:flex;gap:.75rem;justify-content:center}
         .status{text-align:center;margin-top:1rem;min-height:1.5rem}
         .status-text{color:var(--muted);font-size:.85rem}
-        .status-text.error{color:#ef4444}
+        .status-text.error{color:var(--red)}
         .spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(99,102,241,.3);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite;margin-right:.5rem;vertical-align:middle}
         @keyframes spin{to{transform:rotate(360deg)}}
         .result{margin-top:1.5rem;display:none;animation:fadeIn .4s ease}
@@ -59,7 +73,8 @@ HTML_PAGE = """<!DOCTYPE html>
         .det-list{display:flex;flex-wrap:wrap;gap:.4rem}
         .det-chip{display:inline-flex;align-items:center;gap:.3rem;background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.15);color:var(--accent2);font-size:.75rem;font-weight:500;padding:.3rem .65rem;border-radius:8px}
         .det-chip .score{color:var(--muted);font-weight:400}
-        .det-count{font-size:.8rem;color:var(--muted)}
+        .det-count{font-size:.8rem;color:var(--muted);margin-bottom:.5rem}
+        .no-det{color:var(--muted);font-size:.85rem;font-style:italic}
         footer{text-align:center;margin-top:3rem;padding:1.5rem;color:var(--muted);font-size:.78rem;border-top:1px solid var(--border)}
     </style>
 </head>
@@ -69,25 +84,52 @@ HTML_PAGE = """<!DOCTYPE html>
         <header>
             <div class="badge">YOLOv8 Live</div>
             <h1>Object Detection</h1>
-            <p class="sub">Upload any image to detect and label objects using YOLOv8 neural network</p>
+            <p class="sub">Upload an image or use your camera to detect objects in real-time</p>
         </header>
-        <div class="upload-zone" id="dz">
-            <input type="file" id="fi" accept="image/*">
-            <div class="upload-icon">
-                <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+
+        <div class="tabs">
+            <button class="tab active" id="tabUpload">Upload Image</button>
+            <button class="tab" id="tabCamera">Live Camera</button>
+        </div>
+
+        <div id="uploadPanel">
+            <div class="upload-zone" id="dz">
+                <input type="file" id="fi" accept="image/*">
+                <div class="upload-icon">
+                    <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                </div>
+                <div class="upload-title">Drop your image here</div>
+                <div class="upload-hint">or click to browse &middot; JPG, PNG, WebP</div>
+                <div class="file-info" id="fiInfo">
+                    <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    <span id="fiName"></span>
+                </div>
             </div>
-            <div class="upload-title">Drop your image here</div>
-            <div class="upload-hint">or click to browse &middot; JPG, PNG, WebP</div>
-            <div class="file-info" id="fiInfo">
-                <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                <span id="fiName"></span>
+            <div class="actions">
+                <button class="btn btn-primary" id="db" disabled>Detect Objects</button>
+                <button class="btn btn-secondary" id="rb" style="display:none">Upload New</button>
             </div>
         </div>
-        <div class="actions">
-            <button class="btn btn-primary" id="db" disabled>Detect Objects</button>
-            <button class="btn btn-secondary" id="rb" style="display:none">Upload New</button>
+
+        <div id="cameraPanel" style="display:none">
+            <div class="camera-zone" id="camZone">
+                <video id="camVideo" autoplay playsinline muted></video>
+                <canvas id="camCanvas"></canvas>
+                <div class="camera-overlay">
+                    <div class="cam-badge" id="camBadge" style="display:none">LIVE</div>
+                    <div class="cam-fps" id="camFps"></div>
+                </div>
+                <div class="cam-controls">
+                    <button class="btn btn-danger" id="camStop" style="display:none">Stop Camera</button>
+                </div>
+            </div>
+            <div class="actions">
+                <button class="btn btn-primary" id="camStart">Start Camera</button>
+            </div>
         </div>
+
         <div class="status" id="st"></div>
+
         <div class="result" id="res">
             <div class="result-card">
                 <div class="result-header">
@@ -101,19 +143,60 @@ HTML_PAGE = """<!DOCTYPE html>
                 </div>
             </div>
         </div>
+
         <footer>Powered by YOLOv8 + ONNX Runtime &middot; Built with FastAPI</footer>
     </div>
+
     <script>
-        const dz=document.getElementById('dz'),fi=document.getElementById('fi'),db=document.getElementById('db'),rb=document.getElementById('rb'),st=document.getElementById('st'),res=document.getElementById('res'),ri=document.getElementById('ri'),dc=document.getElementById('dc'),dl2=document.getElementById('dl2'),fiInfo=document.getElementById('fiInfo'),fiName=document.getElementById('fiName'),dlLink=document.getElementById('dl');
-        let sf=null;
-        dz.addEventListener('click',()=>fi.click());
-        dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('dragover')});
-        dz.addEventListener('dragleave',()=>dz.classList.remove('dragover'));
-        dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('dragover');if(e.dataTransfer.files.length){fi.files=e.dataTransfer.files;handleFile(e.dataTransfer.files[0])}});
-        fi.addEventListener('change',()=>{if(fi.files.length)handleFile(fi.files[0])});
-        function handleFile(f){sf=f;fiName.textContent=f.name+' ('+(f.size/1024/1024).toFixed(2)+' MB)';fiInfo.classList.add('show');dz.classList.add('has-file');db.disabled=false;res.classList.remove('show');st.innerHTML='';rb.style.display='none'}
-        rb.addEventListener('click',()=>{sf=null;fi.value='';fiInfo.classList.remove('show');dz.classList.remove('has-file');db.disabled=true;res.classList.remove('show');st.innerHTML='';rb.style.display='none'});
-        db.addEventListener('click',async()=>{if(!sf)return;db.disabled=true;st.innerHTML='<span class="spinner"></span><span class="status-text">Analyzing image...</span>';res.classList.remove('show');const fd=new FormData();fd.append('file',sf);try{const r=await fetch('/api/detect',{method:'POST',body:fd});if(!r.ok){let msg='Unknown error';try{const e=await r.json();msg=e.error||msg}catch(ex){}st.innerHTML='<span class="status-text error">'+msg+'</span>';db.disabled=false;return}const blob=await r.blob();const url=URL.createObjectURL(blob);ri.src=url;dlLink.href=url;st.innerHTML='';res.classList.add('show');rb.style.display='inline-block'}catch(e){st.innerHTML='<span class="status-text error">Network error: '+e.message+'</span>';db.disabled=false}});
+    const $=id=>document.getElementById(id);
+    const dz=$('dz'),fi=$('fi'),db=$('db'),rb=$('rb'),st=$('st'),res=$('res'),ri=$('ri'),dc=$('dc'),dl2=$('dl2'),fiInfo=$('fiInfo'),fiName=$('fiName'),dlLink=$('dl');
+    const tabUpload=$('tabUpload'),tabCamera=$('tabCamera'),uploadPanel=$('uploadPanel'),cameraPanel=$('cameraPanel');
+    const camZone=$('camZone'),camVideo=$('camVideo'),camCanvas=$('camCanvas'),camStart=$('camStart'),camStop=$('camStop'),camBadge=$('camBadge'),camFps=$('camFps');
+    let sf=null,stream=null,detecting=false;
+
+    tabUpload.onclick=()=>{tabUpload.classList.add('active');tabCamera.classList.remove('active');uploadPanel.style.display='';cameraPanel.style.display='none';stopCam()};
+    tabCamera.onclick=()=>{tabCamera.classList.add('active');tabUpload.classList.remove('active');cameraPanel.style.display='';uploadPanel.style.display='none'};
+
+    dz.addEventListener('click',()=>fi.click());
+    dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('dragover')});
+    dz.addEventListener('dragleave',()=>dz.classList.remove('dragover'));
+    dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('dragover');if(e.dataTransfer.files.length){fi.files=e.dataTransfer.files;handleFile(e.dataTransfer.files[0])}});
+    fi.addEventListener('change',()=>{if(fi.files.length)handleFile(fi.files[0])});
+    function handleFile(f){sf=f;fiName.textContent=f.name+' ('+(f.size/1024/1024).toFixed(2)+' MB)';fiInfo.classList.add('show');dz.classList.add('has-file');db.disabled=false;res.classList.remove('show');st.innerHTML='';rb.style.display='none'}
+    rb.addEventListener('click',()=>{sf=null;fi.value='';fiInfo.classList.remove('show');dz.classList.remove('has-file');db.disabled=true;res.classList.remove('show');st.innerHTML='';rb.style.display='none'});
+
+    db.addEventListener('click',async()=>{if(!sf)return;db.disabled=true;st.innerHTML='<span class="spinner"></span><span class="status-text">Analyzing image...</span>';res.classList.remove('show');const fd=new FormData();fd.append('file',sf);try{const r=await fetch('/api/detect',{method:'POST',body:fd});if(!r.ok){let msg='Unknown error';try{const e=await r.json();msg=e.error||msg}catch(ex){}st.innerHTML='<span class="status-text error">'+msg+'</span>';db.disabled=false;return}const data=await r.json();ri.src='data:image/jpeg;base64,'+data.image;dlLink.href=ri.src;dc.textContent=data.detections.length+' object'+(data.detections.length!==1?'s':'')+' detected';if(data.detections.length>0){const counts={};data.detections.forEach(d=>{counts[d.label]=(counts[d.label]||0)+1});dl2.innerHTML=Object.entries(counts).map(([k,v])=>'<span class="det-chip">'+k+(v>1?' x'+v:'')+'</span>').join('')}else{dl2.innerHTML='<span class="no-det">No objects detected</span>'}st.innerHTML='';res.classList.add('show');rb.style.display='inline-block'}catch(e){st.innerHTML='<span class="status-text error">Error: '+e.message+'</span>';db.disabled=false}});
+
+    async function startCam(){
+        try{
+            stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:640},height:{ideal:480}}});
+            camVideo.srcObject=stream;
+            camZone.style.display='block';camStart.style.display='none';camStop.style.display='';camBadge.style.display='flex';
+            camVideo.onloadedmetadata=()=>{camCanvas.width=camVideo.videoWidth;camCanvas.height=camVideo.videoHeight;detectLoop()};
+        }catch(e){st.innerHTML='<span class="status-text error">Camera access denied: '+e.message+'</span>'}
+    }
+    function stopCam(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}camZone.style.display='none';camStart.style.display='';camStop.style.display='none';camBadge.style.display='none';camFps.textContent='';detecting=false}
+    camStart.onclick=startCam;camStop.onclick=stopCam;
+
+    async function detectLoop(){
+        if(!stream||detecting)return;
+        detecting=true;
+        const ctx=camCanvas.getContext('2d');
+        const t0=performance.now();
+        const blob=await new Promise(r=>camCanvas.toBlob(r,'image/jpeg',0.7));
+        const fd=new FormData();fd.append('file',blob,'frame.jpg');
+        try{
+            const resp=await fetch('/api/detect',{method:'POST',body:fd});
+            if(resp.ok){
+                const data=await resp.json();
+                const img=new Image();
+                img.onload=()=>{ctx.clearRect(0,0,camCanvas.width,camCanvas.height);ctx.drawImage(img,0,0);const fps=((performance.now()-t0)/1000);camFps.textContent=(1/fps).toFixed(1)+' FPS'};
+                img.src='data:image/jpeg;base64,'+data.image;
+            }
+        }catch(e){}
+        detecting=false;
+        if(stream)requestAnimationFrame(()=>setTimeout(detectLoop,100));
+    }
     </script>
 </body>
 </html>"""
@@ -126,23 +209,7 @@ async def root():
 
 @app.get("/api/health")
 async def health():
-    result = {"status": "ok"}
-    try:
-        import numpy
-        result["numpy"] = numpy.__version__
-    except Exception as e:
-        result["numpy"] = f"FAIL: {e}"
-    try:
-        import PIL
-        result["pillow"] = PIL.__version__
-    except Exception as e:
-        result["pillow"] = f"FAIL: {e}"
-    try:
-        import onnxruntime
-        result["onnxruntime"] = onnxruntime.__version__
-    except Exception as e:
-        result["onnxruntime"] = f"FAIL: {e}"
-    return JSONResponse(result)
+    return JSONResponse({"status": "ok"})
 
 
 @app.post("/api/detect")
@@ -150,8 +217,8 @@ async def detect_image(request: Request):
     import io
     import os
     import traceback
+    import base64
     import urllib.request as _urlreq
-    from fastapi.responses import StreamingResponse
 
     try:
         form = await request.form()
@@ -242,6 +309,7 @@ async def detect_image(request: Request):
 
         pil_img = Image.fromarray(arr)
         draw = ImageDraw.Draw(pil_img)
+        detections = []
 
         if len(max_s) > 0:
             x1 = boxes_xywh[:, 0] - boxes_xywh[:, 2] / 2
@@ -276,15 +344,20 @@ async def detect_image(request: Request):
             for box, sc, ci in zip(bxy, max_s, cls_id):
                 xi1, yi1, xi2, yi2 = map(int, box)
                 color = COLORS[int(ci) % len(COLORS)]
-                label = f"{COCO[int(ci)]} {sc:.0%}"
+                label = COCO[int(ci)]
+                conf = float(sc)
                 draw.rectangle([xi1, yi1, xi2, yi2], outline=color, width=3)
-                tw = len(label) * 9 + 12
+                text = f"{label} {conf:.0%}"
+                tw = len(text) * 9 + 12
                 draw.rectangle([xi1, yi1 - 24, xi1 + tw, yi1], fill=color)
-                draw.text((xi1 + 6, yi1 - 20), label, fill="white")
+                draw.text((xi1 + 6, yi1 - 20), text, fill="white")
+                detections.append({"label": label, "confidence": round(conf, 3)})
 
         buf = io.BytesIO()
-        pil_img.save(buf, format="JPEG", quality=92)
-        return StreamingResponse(io.BytesIO(buf.getvalue()), media_type="image/jpeg")
+        pil_img.save(buf, format="JPEG", quality=85)
+        img_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+
+        return JSONResponse({"image": img_b64, "detections": detections})
 
     except Exception as e:
         return JSONResponse({"error": str(e), "traceback": traceback.format_exc()}, status_code=500)
