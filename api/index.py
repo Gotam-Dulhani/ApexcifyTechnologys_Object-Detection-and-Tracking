@@ -194,7 +194,7 @@ async def detect_image(request: Request):
     if upload is None:
         return JSONResponse({"error": "No file provided"}, status_code=400)
 
-    MODEL_URL = "https://huggingface.co/salim4n/yolov8n-detect-onnx/resolve/main/yolov8n.onnx"
+    MODEL_URL = "https://huggingface.co/s1777/yolo-v8n-onnx/resolve/main/yolov8n.onnx"
     MODEL_PATH = "/tmp/yolov8n.onnx"
 
     if not os.path.exists(MODEL_PATH) or os.path.getsize(MODEL_PATH) < 1_000_000:
