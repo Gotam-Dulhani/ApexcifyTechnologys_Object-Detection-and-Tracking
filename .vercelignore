@@ -1,13 +1,11 @@
 main.py
-_main_backup.py
 scripts/
 README.md
 License
 .git/
 .gitattributes
-.python-version
 yolov8n.pt
-
+yolov8n.onnx
 __pycache__/
 .venv/
 node_modules/

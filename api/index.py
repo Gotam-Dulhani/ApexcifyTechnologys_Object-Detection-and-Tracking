@@ -69,9 +69,8 @@ HTML_PAGE = """<!DOCTYPE html>
         <header>
             <div class="badge">YOLOv8 Live</div>
             <h1>Object Detection</h1>
-            <p class="sub">Upload any image to detect and label objects in real-time using YOLOv8 neural network</p>
+            <p class="sub">Upload any image to detect and label objects using YOLOv8 neural network</p>
         </header>
-
         <div class="upload-zone" id="dz">
             <input type="file" id="fi" accept="image/*">
             <div class="upload-icon">
@@ -84,14 +83,11 @@ HTML_PAGE = """<!DOCTYPE html>
                 <span id="fiName"></span>
             </div>
         </div>
-
         <div class="actions">
             <button class="btn btn-primary" id="db" disabled>Detect Objects</button>
             <button class="btn btn-secondary" id="rb" style="display:none">Upload New</button>
         </div>
-
         <div class="status" id="st"></div>
-
         <div class="result" id="res">
             <div class="result-card">
                 <div class="result-header">
@@ -105,64 +101,19 @@ HTML_PAGE = """<!DOCTYPE html>
                 </div>
             </div>
         </div>
-
         <footer>Powered by YOLOv8 + ONNX Runtime &middot; Built with FastAPI</footer>
     </div>
-
     <script>
         const dz=document.getElementById('dz'),fi=document.getElementById('fi'),db=document.getElementById('db'),rb=document.getElementById('rb'),st=document.getElementById('st'),res=document.getElementById('res'),ri=document.getElementById('ri'),dc=document.getElementById('dc'),dl2=document.getElementById('dl2'),fiInfo=document.getElementById('fiInfo'),fiName=document.getElementById('fiName'),dlLink=document.getElementById('dl');
         let sf=null;
-
         dz.addEventListener('click',()=>fi.click());
         dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('dragover')});
         dz.addEventListener('dragleave',()=>dz.classList.remove('dragover'));
         dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('dragover');if(e.dataTransfer.files.length){fi.files=e.dataTransfer.files;handleFile(e.dataTransfer.files[0])}});
         fi.addEventListener('change',()=>{if(fi.files.length)handleFile(fi.files[0])});
-
-        function handleFile(f){
-            sf=f;
-            fiName.textContent=f.name+' ('+(f.size/1024/1024).toFixed(2)+' MB)';
-            fiInfo.classList.add('show');
-            dz.classList.add('has-file');
-            db.disabled=false;
-            res.classList.remove('show');
-            st.innerHTML='';
-            rb.style.display='none';
-        }
-
-        rb.addEventListener('click',()=>{
-            sf=null;fi.value='';
-            fiInfo.classList.remove('show');dz.classList.remove('has-file');
-            db.disabled=true;res.classList.remove('show');st.innerHTML='';
-            rb.style.display='none';
-        });
-
-        db.addEventListener('click',async()=>{
-            if(!sf)return;
-            db.disabled=true;
-            st.innerHTML='<span class="spinner"></span><span class="status-text">Analyzing image...</span>';
-            res.classList.remove('show');
-            const fd=new FormData();fd.append('file',sf);
-            try{
-                const r=await fetch('/api/detect',{method:'POST',body:fd});
-                if(!r.ok){
-                    let msg='Unknown error';
-                    try{const e=await r.json();msg=e.error||msg}catch(ex){}
-                    st.innerHTML='<span class="status-text error">'+msg+'</span>';
-                    db.disabled=false;return;
-                }
-                const blob=await r.blob();
-                const url=URL.createObjectURL(blob);
-                ri.src=url;
-                dlLink.href=url;
-                st.innerHTML='';
-                res.classList.add('show');
-                rb.style.display='inline-block';
-            }catch(e){
-                st.innerHTML='<span class="status-text error">Network error: '+e.message+'</span>';
-                db.disabled=false;
-            }
-        });
+        function handleFile(f){sf=f;fiName.textContent=f.name+' ('+(f.size/1024/1024).toFixed(2)+' MB)';fiInfo.classList.add('show');dz.classList.add('has-file');db.disabled=false;res.classList.remove('show');st.innerHTML='';rb.style.display='none'}
+        rb.addEventListener('click',()=>{sf=null;fi.value='';fiInfo.classList.remove('show');dz.classList.remove('has-file');db.disabled=true;res.classList.remove('show');st.innerHTML='';rb.style.display='none'});
+        db.addEventListener('click',async()=>{if(!sf)return;db.disabled=true;st.innerHTML='<span class="spinner"></span><span class="status-text">Analyzing image...</span>';res.classList.remove('show');const fd=new FormData();fd.append('file',sf);try{const r=await fetch('/api/detect',{method:'POST',body:fd});if(!r.ok){let msg='Unknown error';try{const e=await r.json();msg=e.error||msg}catch(ex){}st.innerHTML='<span class="status-text error">'+msg+'</span>';db.disabled=false;return}const blob=await r.blob();const url=URL.createObjectURL(blob);ri.src=url;dlLink.href=url;st.innerHTML='';res.classList.add('show');rb.style.display='inline-block'}catch(e){st.innerHTML='<span class="status-text error">Network error: '+e.message+'</span>';db.disabled=false}});
     </script>
 </body>
 </html>"""
@@ -191,21 +142,6 @@ async def health():
         result["onnxruntime"] = onnxruntime.__version__
     except Exception as e:
         result["onnxruntime"] = f"FAIL: {e}"
-    try:
-        import urllib.request
-        result["urllib"] = "ok"
-    except Exception as e:
-        result["urllib"] = f"FAIL: {e}"
-    import os
-    _base = os.path.dirname(os.path.abspath(__file__))
-    for candidate in [os.path.join(_base, "..", "yolov8n.onnx"), os.path.join(_base, "yolov8n.onnx"), "/tmp/yolov8n.onnx"]:
-        if os.path.exists(candidate) and os.path.getsize(candidate) > 1_000_000:
-            result["model_path"] = candidate
-            result["model_size"] = os.path.getsize(candidate)
-            break
-    else:
-        result["model_path"] = "not found"
-        result["model_size"] = 0
     return JSONResponse(result)
 
 
@@ -214,69 +150,47 @@ async def detect_image(request: Request):
     import io
     import os
     import traceback
-    import numpy as np
-    from PIL import Image, ImageDraw, ImageFont
-    import onnxruntime as ort
     import urllib.request as _urlreq
     from fastapi.responses import StreamingResponse
 
-    form = await request.form()
-    upload = form.get("file")
-    if upload is None:
-        return JSONResponse({"error": "No file provided"}, status_code=400)
-
-    MODEL_URL = "https://huggingface.co/s1777/yolo-v8n-onnx/resolve/main/yolov8n.onnx"
-    MODEL_PATH = "/tmp/yolov8n.onnx"
-
-    _base = os.path.dirname(os.path.abspath(__file__))
-    for candidate in [os.path.join(_base, "..", "yolov8n.onnx"), os.path.join(_base, "yolov8n.onnx"), MODEL_PATH]:
-        if os.path.exists(candidate) and os.path.getsize(candidate) > 1_000_000:
-            MODEL_PATH = candidate
-            break
-    else:
-        import urllib.request as _urlreq
-        try:
-            req = _urlreq.Request(MODEL_URL, headers={"User-Agent": "Mozilla/5.0"})
-            with _urlreq.urlopen(req, timeout=30) as resp:
-                data = resp.read()
-            with open(MODEL_PATH, "wb") as f:
-                f.write(data)
-        except Exception as e:
-            return JSONResponse({"error": f"Failed to download model: {e}"}, status_code=500)
-
-    if not os.path.exists(MODEL_PATH) or os.path.getsize(MODEL_PATH) < 1_000_000:
-        return JSONResponse({"error": "Model file not available"}, status_code=500)
-
-    COCO = [
-        "person","bicycle","car","motorcycle","airplane","bus","train","truck","boat",
-        "traffic light","fire hydrant","stop sign","parking meter","bench","bird","cat",
-        "dog","horse","sheep","cow","elephant","bear","zebra","giraffe","backpack",
-        "umbrella","handbag","tie","suitcase","frisbee","skis","snowboard",
-        "sports ball","kite","baseball bat","baseball glove","skateboard","surfboard",
-        "tennis racket","bottle","wine glass","cup","fork","knife","spoon","bowl",
-        "banana","apple","sandwich","orange","broccoli","carrot","hot dog","pizza",
-        "donut","cake","chair","couch","potted plant","bed","dining table","toilet",
-        "tv","laptop","mouse","remote","keyboard","cell phone","microwave","oven",
-        "toaster","sink","refrigerator","book","clock","vase","scissors",
-        "teddy bear","hair drier","toothbrush",
-    ]
-
-    COLORS = [
-        "#6366f1","#f43f5e","#22c55e","#f59e0b","#3b82f6","#ec4899",
-        "#14b8a6","#f97316","#8b5cf6","#06b6d4","#ef4444","#10b981",
-        "#eab308","#a855f7","#0ea5e9","#d946ef","#84cc16","#fb923c",
-    ]
-
-    IMG_SIZE = 640
-    CONF = 0.25
-    IOU_THR = 0.45
-
     try:
+        form = await request.form()
+        upload = form.get("file")
+        if upload is None:
+            return JSONResponse({"error": "No file provided"}, status_code=400)
+
         contents = await upload.read()
+        if len(contents) < 100:
+            return JSONResponse({"error": "File too small to be a valid image"}, status_code=400)
+
+        MODEL_URL = "https://huggingface.co/s1777/yolo-v8n-onnx/resolve/main/yolov8n.onnx"
+        MODEL_PATH = "/tmp/yolov8n.onnx"
+
+        if not os.path.exists(MODEL_PATH) or os.path.getsize(MODEL_PATH) < 1_000_000:
+            try:
+                req = _urlreq.Request(MODEL_URL, headers={"User-Agent": "Mozilla/5.0"})
+                with _urlreq.urlopen(req, timeout=60) as resp:
+                    with open(MODEL_PATH, "wb") as f:
+                        while True:
+                            chunk = resp.read(65536)
+                            if not chunk:
+                                break
+                            f.write(chunk)
+            except Exception as e:
+                return JSONResponse({"error": f"Model download failed: {e}"}, status_code=500)
+
+        if not os.path.exists(MODEL_PATH) or os.path.getsize(MODEL_PATH) < 1_000_000:
+            return JSONResponse({"error": "Model not available after download"}, status_code=500)
+
+        import numpy as np
+        from PIL import Image, ImageDraw
+        import onnxruntime as ort
+
         img = Image.open(io.BytesIO(contents)).convert("RGB")
         arr = np.array(img)
         h_orig, w_orig = arr.shape[:2]
 
+        IMG_SIZE = 640
         r = min(IMG_SIZE / h_orig, IMG_SIZE / w_orig)
         nw, nh = int(w_orig * r), int(h_orig * r)
         resized = np.array(Image.fromarray(arr).resize((nw, nh), Image.BILINEAR))
@@ -295,6 +209,29 @@ async def detect_image(request: Request):
         if pred.ndim == 3:
             pred = pred[0]
         pred = pred.T
+
+        COCO = [
+            "person","bicycle","car","motorcycle","airplane","bus","train","truck","boat",
+            "traffic light","fire hydrant","stop sign","parking meter","bench","bird","cat",
+            "dog","horse","sheep","cow","elephant","bear","zebra","giraffe","backpack",
+            "umbrella","handbag","tie","suitcase","frisbee","skis","snowboard",
+            "sports ball","kite","baseball bat","baseball glove","skateboard","surfboard",
+            "tennis racket","bottle","wine glass","cup","fork","knife","spoon","bowl",
+            "banana","apple","sandwich","orange","broccoli","carrot","hot dog","pizza",
+            "donut","cake","chair","couch","potted plant","bed","dining table","toilet",
+            "tv","laptop","mouse","remote","keyboard","cell phone","microwave","oven",
+            "toaster","sink","refrigerator","book","clock","vase","scissors",
+            "teddy bear","hair drier","toothbrush",
+        ]
+
+        COLORS = [
+            "#6366f1","#f43f5e","#22c55e","#f59e0b","#3b82f6","#ec4899",
+            "#14b8a6","#f97316","#8b5cf6","#06b6d4","#ef4444","#10b981",
+            "#eab308","#a855f7","#0ea5e9","#d946ef","#84cc16","#fb923c",
+        ]
+
+        CONF = 0.25
+        IOU_THR = 0.45
 
         boxes_xywh = pred[:, :4]
         scores_all = pred[:, 4:]
@@ -336,21 +273,14 @@ async def detect_image(request: Request):
                 order = order[np.where(iou <= IOU_THR)[0] + 1]
 
             bxy, max_s, cls_id = bxy[keep], max_s[keep], cls_id[keep]
-            detected = []
-            for idx, (box, sc, ci) in enumerate(zip(bxy, max_s, cls_id)):
+            for box, sc, ci in zip(bxy, max_s, cls_id):
                 xi1, yi1, xi2, yi2 = map(int, box)
                 color = COLORS[int(ci) % len(COLORS)]
                 label = f"{COCO[int(ci)]} {sc:.0%}"
                 draw.rectangle([xi1, yi1, xi2, yi2], outline=color, width=3)
                 tw = len(label) * 9 + 12
                 draw.rectangle([xi1, yi1 - 24, xi1 + tw, yi1], fill=color)
-                try:
-                    draw.text((xi1 + 6, yi1 - 20), label, fill="#ffffff")
-                except Exception:
-                    draw.text((xi1 + 6, yi1 - 20), label, fill="white")
-                detected.append({"label": COCO[int(ci)], "confidence": float(sc)})
-        else:
-            detected = []
+                draw.text((xi1 + 6, yi1 - 20), label, fill="white")
 
         buf = io.BytesIO()
         pil_img.save(buf, format="JPEG", quality=92)
