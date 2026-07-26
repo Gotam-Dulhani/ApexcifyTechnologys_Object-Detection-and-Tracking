@@ -39,13 +39,14 @@ HTML_PAGE = r"""<!DOCTYPE html>
         .file-info.show{display:flex}
         .file-info svg{width:16px;height:16px;stroke:var(--green);fill:none;stroke-width:2}
         .camera-zone{position:relative;border-radius:var(--radius);overflow:hidden;background:var(--card);border:1px solid var(--border);aspect-ratio:4/3;display:none}
-        .camera-zone video,.camera-zone canvas{width:100%;height:100%;object-fit:cover;display:block}
-        .camera-zone canvas{position:absolute;top:0;left:0}
+        .camera-zone video{width:100%;height:100%;object-fit:cover;display:block}
         .camera-overlay{position:absolute;top:1rem;left:1rem;right:1rem;display:flex;justify-content:space-between;align-items:center;z-index:2}
         .cam-badge{background:rgba(239,68,68,.9);color:#fff;font-size:.7rem;font-weight:700;padding:.3rem .7rem;border-radius:99px;display:flex;align-items:center;gap:.35rem}
         .cam-badge::before{content:'';width:6px;height:6px;background:#fff;border-radius:50%;animation:pulse 1s infinite}
         .cam-fps{background:rgba(0,0,0,.6);color:#fff;font-size:.7rem;font-weight:600;padding:.3rem .6rem;border-radius:6px}
         .cam-controls{position:absolute;bottom:1rem;left:1rem;right:1rem;display:flex;justify-content:center;z-index:2}
+        .cam-dets{position:absolute;bottom:3.5rem;left:1rem;right:1rem;display:flex;flex-wrap:wrap;gap:.35rem;z-index:2}
+        .det-chip-sm{background:rgba(0,0,0,.7);border:1px solid rgba(99,102,241,.3);color:#fff;font-size:.7rem;font-weight:500;padding:.2rem .55rem;border-radius:6px}
         .btn{padding:.7rem 2rem;border-radius:12px;font-size:.9rem;font-weight:600;cursor:pointer;border:none;transition:all .2s;font-family:inherit}
         .btn-primary{background:var(--accent);color:#fff;box-shadow:0 4px 15px rgba(99,102,241,.3)}
         .btn-primary:hover:not(:disabled){background:var(--accent2);transform:translateY(-1px)}
@@ -113,11 +114,11 @@ HTML_PAGE = r"""<!DOCTYPE html>
         <div id="cameraPanel" style="display:none">
             <div class="camera-zone" id="camZone">
                 <video id="camVideo" autoplay playsinline muted></video>
-                <canvas id="camCanvas"></canvas>
                 <div class="camera-overlay">
                     <div class="cam-badge" id="camBadge" style="display:none">LIVE</div>
                     <div class="cam-fps" id="camFps"></div>
                 </div>
+                <div class="cam-dets" id="camDetChips"></div>
                 <div class="cam-controls">
                     <button class="btn btn-danger" id="camStop" style="display:none">Stop Camera</button>
                 </div>
@@ -143,15 +144,18 @@ HTML_PAGE = r"""<!DOCTYPE html>
             </div>
         </div>
 
-        <footer>Powered by YOLOv8 + ONNX Runtime &middot; Built with FastAPI &middot; v2</footer>
+        <footer>Powered by YOLOv8 + ONNX Runtime &middot; Built with FastAPI &middot; v3</footer>
     </div>
+
+    <canvas id="offCanvas" style="display:none"></canvas>
 
     <script>
     const $=id=>document.getElementById(id);
     const dz=$('dz'),fi=$('fi'),db=$('db'),rb=$('rb'),st=$('st'),res=$('res'),ri=$('ri'),dc=$('dc'),dl2=$('dl2'),fiInfo=$('fiInfo'),fiName=$('fiName'),dlLink=$('dl');
     const tabUpload=$('tabUpload'),tabCamera=$('tabCamera'),uploadPanel=$('uploadPanel'),cameraPanel=$('cameraPanel');
-    const camZone=$('camZone'),camVideo=$('camVideo'),camCanvas=$('camCanvas'),camStart=$('camStart'),camStop=$('camStop'),camBadge=$('camBadge'),camFps=$('camFps');
-    let sf=null,stream=null,detecting=false;
+    const camZone=$('camZone'),camVideo=$('camVideo'),camStart=$('camStart'),camStop=$('camStop'),camBadge=$('camBadge'),camFps=$('camFps'),camDetChips=$('camDetChips');
+    const offCanvas=$('offCanvas');
+    let sf=null,stream=null,detecting=false,camInterval=null;
 
     tabUpload.onclick=()=>{tabUpload.classList.add('active');tabCamera.classList.remove('active');uploadPanel.style.display='';cameraPanel.style.display='none';stopCam()};
     tabCamera.onclick=()=>{tabCamera.classList.add('active');tabUpload.classList.remove('active');cameraPanel.style.display='';uploadPanel.style.display='none'};
@@ -171,43 +175,46 @@ HTML_PAGE = r"""<!DOCTYPE html>
             stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:640},height:{ideal:480}}});
             camVideo.srcObject=stream;
             camZone.style.display='block';camStart.style.display='none';camStop.style.display='';camBadge.style.display='flex';
-            camVideo.onloadedmetadata=()=>{camCanvas.width=camVideo.videoWidth;camCanvas.height=camVideo.videoHeight;detectLoop()};
+            camVideo.onloadedmetadata=()=>{
+                offCanvas.width=320;offCanvas.height=240;
+                camDetChips.innerHTML='';
+                detectFrame();
+            };
         }catch(e){st.innerHTML='<span class="status-text error">Camera access denied: '+e.message+'</span>'}
     }
-    function stopCam(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}camZone.style.display='none';camStart.style.display='';camStop.style.display='none';camBadge.style.display='none';camFps.textContent='';detecting=false}
+
+    function stopCam(){
+        if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
+        if(camInterval){clearInterval(camInterval);camInterval=null}
+        camZone.style.display='none';camStart.style.display='';camStop.style.display='none';camBadge.style.display='none';camFps.textContent='';camDetChips.innerHTML='';
+        detecting=false;
+    }
     camStart.onclick=startCam;camStop.onclick=stopCam;
 
-    async function detectLoop(){
+    async function detectFrame(){
         if(!stream||detecting)return;
         detecting=true;
         try{
-            const ctx=camCanvas.getContext('2d');
-            ctx.drawImage(camVideo,0,0,camCanvas.width,camCanvas.height);
+            const ctx=offCanvas.getContext('2d');
+            ctx.drawImage(camVideo,0,0,offCanvas.width,offCanvas.height);
             const t0=performance.now();
-            const blob=await new Promise(r=>camCanvas.toBlob(r,'image/jpeg',0.7));
+            const blob=await new Promise(r=>offCanvas.toBlob(r,'image/jpeg',0.5));
             if(!blob){detecting=false;return}
             const fd=new FormData();fd.append('file',blob,'frame.jpg');
             const resp=await fetch('/api/detect',{method:'POST',body:fd});
             if(resp.ok){
                 const data=await resp.json();
-                if(data.image){
-                    const img=new Image();
-                    await new Promise((res,rej)=>{img.onload=res;img.onerror=rej;img.src='data:image/jpeg;base64,'+data.image});
-                    ctx.drawImage(img,0,0,camCanvas.width,camCanvas.height);
-                }
-                const elapsed=(performance.now()-t0)/1000;
+                const elapsed=((performance.now()-t0)/1000);
                 camFps.textContent=(1/elapsed).toFixed(1)+' FPS';
-                let camDet=$('camDetList');
-                if(camDet){
-                    if(data.detections&&data.detections.length>0){
-                        const counts={};data.detections.forEach(d=>{counts[d.label]=(counts[d.label]||0)+1});
-                        camDet.innerHTML=Object.entries(counts).map(([k,v])=>'<span class="det-chip">'+k+(v>1?' x'+v:'')+'</span>').join('');
-                    }else{camDet.innerHTML=''}
+                if(data.detections&&data.detections.length>0){
+                    const counts={};data.detections.forEach(d=>{counts[d.label]=(counts[d.label]||0)+1});
+                    camDetChips.innerHTML=Object.entries(counts).map(([k,v])=>'<span class="det-chip-sm">'+k+(v>1?' x'+v:'')+'</span>').join('');
+                }else{
+                    camDetChips.innerHTML='<span class="det-chip-sm" style="color:var(--muted)">No objects</span>';
                 }
             }
-        }catch(e){}
+        }catch(e){camFps.textContent='Error';}
         detecting=false;
-        if(stream)setTimeout(detectLoop,150);
     }
     </script>
 </body>
@@ -231,6 +238,7 @@ async def detect_image(request: Request):
     import traceback
     import base64
     import urllib.request as _urlreq
+    import tempfile
 
     try:
         form = await request.form()
@@ -247,15 +255,23 @@ async def detect_image(request: Request):
 
         if not os.path.exists(MODEL_PATH) or os.path.getsize(MODEL_PATH) < 1_000_000:
             try:
+                tmp_fd, tmp_path = tempfile.mkstemp(dir="/tmp", suffix=".onnx")
+                os.close(tmp_fd)
                 req = _urlreq.Request(MODEL_URL, headers={"User-Agent": "Mozilla/5.0"})
-                with _urlreq.urlopen(req, timeout=60) as resp:
-                    with open(MODEL_PATH, "wb") as f:
+                with _urlreq.urlopen(req, timeout=120) as resp:
+                    with open(tmp_path, "wb") as f:
                         while True:
                             chunk = resp.read(65536)
                             if not chunk:
                                 break
                             f.write(chunk)
+                if os.path.getsize(tmp_path) > 1_000_000:
+                    os.replace(tmp_path, MODEL_PATH)
+                else:
+                    os.remove(tmp_path)
             except Exception as e:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
                 return JSONResponse({"error": f"Model download failed: {e}"}, status_code=500)
 
         if not os.path.exists(MODEL_PATH) or os.path.getsize(MODEL_PATH) < 1_000_000:
@@ -279,7 +295,7 @@ async def detect_image(request: Request):
         padded = np.full((IMG_SIZE, IMG_SIZE, 3), 114, dtype=np.uint8)
         padded[top:top + nh, lft:lft + nw] = resized
 
-        blob = padded[:, :, ::-1].transpose(2, 0, 1).astype(np.float32) / 255.0
+        blob = padded.transpose(2, 0, 1).astype(np.float32) / 255.0
         blob = np.expand_dims(blob, 0)
 
         sess = ort.InferenceSession(MODEL_PATH, providers=["CPUExecutionProvider"])
@@ -288,8 +304,7 @@ async def detect_image(request: Request):
         pred = out[0]
         if pred.ndim == 3:
             pred = pred[0]
-
-        if pred.shape[0] < pred.shape[1]:
+        if pred.ndim == 2 and pred.shape[0] < pred.shape[1]:
             pred = pred.T
 
         COCO = [
@@ -378,7 +393,7 @@ async def detect_image(request: Request):
         return JSONResponse({
             "image": img_b64,
             "detections": detections,
-            "debug": {"output_shape": list(out.shape), "pred_shape": [num_preds, num_features], "after_filter": len(boxes_xywh)}
+            "debug": {"output_shape": list(out.shape), "pred_shape": list(pred.shape), "raw_max": float(pred[:, 4:].max()) if pred.shape[1] > 4 else 0, "num_detections_raw": int(m.sum())}
         })
 
     except Exception as e:
