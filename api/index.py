@@ -144,7 +144,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
             </div>
         </div>
 
-        <footer>Powered by YOLOv8 + ONNX Runtime &middot; Built with FastAPI</footer>
+        <footer>Powered by YOLOv8 + ONNX Runtime &middot; Built with FastAPI &middot; v2</footer>
     </div>
 
     <script>
