@@ -215,6 +215,7 @@ HTML_PAGE = r"""<!DOCTYPE html>
             }
         }catch(e){camFps.textContent='Error';}
         detecting=false;
+        if(stream)setTimeout(detectFrame,500);
     }
     </script>
 </body>
